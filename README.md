@@ -103,10 +103,12 @@ A comprehensive, fully containerized document management system with AI-powered 
    - Waits for health checks
 
 4. **Access the application**
-   - **Application:** http://localhost
-   - **API Docs:** http://localhost/docs
-   - **MinIO Console:** http://localhost:9001
-   - **Meilisearch:** http://localhost:7700
+   - **Application:** http://localhost:10080
+   - **API Docs:** http://localhost:10080/docs
+   - **MinIO Console:** http://localhost:10901
+   - **Meilisearch:** http://localhost:10700
+   - **Backend API (direct):** http://localhost:10800
+   - **Frontend (direct):** http://localhost:10173
 
 5. **View logs**
    ```bash
@@ -248,14 +250,14 @@ document-library/
 
 | Service | Container Name | Port(s) | Purpose |
 |---------|---------------|---------|---------|
-| nginx | doclib-nginx | 80 | Reverse proxy |
-| frontend | doclib-frontend | - | React application |
-| backend | doclib-backend | - | FastAPI server |
+| nginx | doclib-nginx | 10080 | Reverse proxy (main entry) |
+| frontend | doclib-frontend | 10173 | React application |
+| backend | doclib-backend | 10800 | FastAPI server |
 | celery-worker | doclib-celery-worker | - | Background jobs |
-| postgres | doclib-postgres | 5432 | Database |
-| minio | doclib-minio | 9000, 9001 | Object storage |
-| redis | doclib-redis | 6379 | Cache & queue |
-| meilisearch | doclib-meilisearch | 7700 | Search engine |
+| postgres | doclib-postgres | 10432 | Database |
+| minio | doclib-minio | 10900, 10901 | Object storage |
+| redis | doclib-redis | 10379 | Cache & queue |
+| meilisearch | doclib-meilisearch | 10700 | Search engine |
 
 ### Health Checks
 
@@ -358,8 +360,10 @@ docker-compose exec backend python -c "from app.db.base import engine; print(eng
 ### Port already in use
 ```bash
 # Change port in docker-compose.yml or stop conflicting service
-sudo lsof -i :80
+sudo lsof -i :10080
 ```
+
+Note: All ports are in the 10001+ range to avoid conflicts with common services.
 
 ### Reset everything
 ```bash
@@ -370,7 +374,7 @@ docker-compose exec backend alembic upgrade head
 
 ## API Documentation
 
-Once running, visit http://localhost/docs for interactive API documentation (Swagger UI).
+Once running, visit http://localhost:10080/docs for interactive API documentation (Swagger UI).
 
 ## Roadmap
 
