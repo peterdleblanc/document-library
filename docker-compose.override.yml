@@ -1,0 +1,68 @@
+# Development overrides - automatically loaded with docker-compose up
+# Adds hot reload and debugging features
+
+version: '3.8'
+
+services:
+  # Frontend with hot reload
+  frontend:
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+      # Don't mount node_modules (use container's version)
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+
+  # Backend with hot reload
+  backend:
+    volumes:
+      # Mount source code for hot reload
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
+      # Don't mount venv (use container's version)
+    environment:
+      - DEBUG=True
+      - PYTHONUNBUFFERED=1
+
+  # Celery worker with hot reload
+  celery-worker:
+    volumes:
+      # Mount source code for hot reload
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+    environment:
+      - DEBUG=True
+      - PYTHONUNBUFFERED=1
+    # Restart on code changes (use watchdog in production celery for better reload)
+    command: celery -A app.celery_app worker --loglevel=info --pool=solo
+
+  # Expose PostgreSQL for external access (DB tools)
+  postgres:
+    ports:
+      - "5432:5432"
+
+  # Expose MinIO console for development
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  # Expose Redis for development tools
+  redis:
+    ports:
+      - "6379:6379"
+
+  # Expose Meilisearch for development
+  meilisearch:
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_ENV: development

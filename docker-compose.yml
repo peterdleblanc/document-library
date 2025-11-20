@@ -1,20 +1,122 @@
 version: '3.8'
 
 services:
+  # Nginx Reverse Proxy
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: doclib-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - doclib-network
+    restart: unless-stopped
+
+  # Frontend Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: doclib-frontend
+    environment:
+      - VITE_API_URL=http://localhost/api
+    networks:
+      - doclib-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend API Application
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: doclib-backend
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - MINIO_ENDPOINT=minio:9000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MEILISEARCH_URL=http://meilisearch:7700
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    networks:
+      - doclib-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker for Background Jobs
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: doclib-celery-worker
+    command: celery -A app.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - MINIO_ENDPOINT=minio:9000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MEILISEARCH_URL=http://meilisearch:7700
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - doclib-network
+    restart: unless-stopped
+
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: doclib-postgres
     environment:
-      POSTGRES_USER: doclib
-      POSTGRES_PASSWORD: your-secure-password
-      POSTGRES_DB: document_library
+      POSTGRES_USER: ${POSTGRES_USER:-doclib}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-doclib_password}
+      POSTGRES_DB: ${POSTGRES_DB:-document_library}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - doclib-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U doclib"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-doclib}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,13 +127,16 @@ services:
     container_name: doclib-minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
+    networks:
+      - doclib-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -43,9 +148,12 @@ services:
     image: redis:7-alpine
     container_name: doclib-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - doclib-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -57,40 +165,33 @@ services:
     image: getmeili/meilisearch:v1.6
     container_name: doclib-meilisearch
     environment:
-      MEILI_ENV: development
-      MEILI_NO_ANALYTICS: true
+      MEILI_ENV: ${MEILI_ENV:-development}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-}
     ports:
-      - "7700:7700"
+      - "${MEILISEARCH_PORT:-7700}:7700"
     volumes:
       - meilisearch_data:/meili_data
+    networks:
+      - doclib-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # PgAdmin (optional - for database management)
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: doclib-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@doclib.local
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-    ports:
-      - "5050:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-
 volumes:
   postgres_data:
+    name: doclib_postgres_data
   minio_data:
+    name: doclib_minio_data
   redis_data:
+    name: doclib_redis_data
   meilisearch_data:
-  pgadmin_data:
+    name: doclib_meilisearch_data
 
 networks:
-  default:
+  doclib-network:
     name: doclib-network
+    driver: bridge

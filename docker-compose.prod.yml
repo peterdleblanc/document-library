@@ -1,0 +1,149 @@
+# Production overrides - use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+# Optimized for production deployment
+
+version: '3.8'
+
+services:
+  # Frontend production build
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=${API_URL:-https://api.yourdomain.com}
+    # No volume mounts in production
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # Backend production
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      - DEBUG=False
+      - PYTHONUNBUFFERED=1
+    # No volume mounts in production
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # Celery worker production
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      - DEBUG=False
+      - PYTHONUNBUFFERED=1
+    command: celery -A app.celery_app worker --loglevel=warning --concurrency=4
+    # No volume mounts in production
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # PostgreSQL production
+  postgres:
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Must be set in .env
+    # Don't expose port externally in production
+    ports: []
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  # MinIO production
+  minio:
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}  # Must be set in .env
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}  # Must be set in .env
+    # Don't expose ports externally in production (use nginx proxy)
+    ports:
+      - "127.0.0.1:9001:9001"  # Console on localhost only
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Redis production
+  redis:
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    ports: []  # Don't expose externally
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Meilisearch production
+  meilisearch:
+    environment:
+      - MEILI_ENV=production
+      - MEILI_MASTER_KEY=${MEILISEARCH_API_KEY}  # Must be set in .env
+    ports: []  # Don't expose externally
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # Nginx reverse proxy production
+  nginx:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
