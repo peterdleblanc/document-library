@@ -51,12 +51,12 @@ class APIService {
 
   // Auth endpoints
   async register(data: RegisterRequest): Promise<User> {
-    const response = await this.client.post<User>('/api/v1/auth/register', data);
+    const response = await this.client.post<User>('/v1/auth/register', data);
     return response.data;
   }
 
   async login(data: LoginRequest): Promise<AuthResponse> {
-    const response = await this.client.post<AuthResponse>('/api/v1/auth/login/json', data);
+    const response = await this.client.post<AuthResponse>('/v1/auth/login/json', data);
     // Store tokens
     localStorage.setItem('access_token', response.data.access_token);
     localStorage.setItem('refresh_token', response.data.refresh_token);
@@ -64,7 +64,7 @@ class APIService {
   }
 
   async getCurrentUser(): Promise<User> {
-    const response = await this.client.get<User>('/api/v1/auth/me');
+    const response = await this.client.get<User>('/v1/auth/me');
     return response.data;
   }
 
@@ -75,14 +75,14 @@ class APIService {
 
   // Document endpoints
   async listDocuments(page: number = 1, pageSize: number = 20): Promise<DocumentListResponse> {
-    const response = await this.client.get<DocumentListResponse>('/api/v1/documents/', {
+    const response = await this.client.get<DocumentListResponse>('/v1/documents/', {
       params: { page, page_size: pageSize },
     });
     return response.data;
   }
 
   async getDocument(documentId: string): Promise<Document> {
-    const response = await this.client.get<Document>(`/api/v1/documents/${documentId}`);
+    const response = await this.client.get<Document>(`/v1/documents/${documentId}`);
     return response.data;
   }
 
@@ -98,7 +98,7 @@ class APIService {
     }
 
     const response = await this.client.post<DocumentUploadResponse>(
-      '/api/v1/documents/upload',
+      '/v1/documents/upload',
       formData,
       {
         headers: {
@@ -116,19 +116,19 @@ class APIService {
   }
 
   async downloadDocument(documentId: string): Promise<Blob> {
-    const response = await this.client.get(`/api/v1/documents/${documentId}/download`, {
+    const response = await this.client.get(`/v1/documents/${documentId}/download`, {
       responseType: 'blob',
     });
     return response.data;
   }
 
   async getDownloadUrl(documentId: string): Promise<{ download_url: string; expires_in: number }> {
-    const response = await this.client.get(`/api/v1/documents/${documentId}/download-url`);
+    const response = await this.client.get(`/v1/documents/${documentId}/download-url`);
     return response.data;
   }
 
   async deleteDocument(documentId: string): Promise<void> {
-    await this.client.delete(`/api/v1/documents/${documentId}`);
+    await this.client.delete(`/v1/documents/${documentId}`);
   }
 
   // Health check

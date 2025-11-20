@@ -31,7 +31,7 @@ class Document(Base):
     uploader = relationship("User", back_populates="documents", foreign_keys=[uploaded_by])
     versions = relationship("DocumentVersion", back_populates="document", foreign_keys="DocumentVersion.document_id")
     current_version = relationship("DocumentVersion", foreign_keys=[current_version_id], post_update=True)
-    metadata = relationship("DocumentMetadata", back_populates="document", uselist=False)
+    doc_metadata = relationship("DocumentMetadata", back_populates="document", uselist=False)
     text_content = relationship("DocumentText", back_populates="document", uselist=False)
     embeddings = relationship("DocumentEmbedding", back_populates="document")
 
@@ -108,7 +108,7 @@ class DocumentMetadata(Base):
     ai_model_used = Column(String(100), nullable=True)
 
     # Relationships
-    document = relationship("Document", back_populates="metadata")
+    document = relationship("Document", back_populates="doc_metadata")
     version = relationship("DocumentVersion")
 
     def __repr__(self):

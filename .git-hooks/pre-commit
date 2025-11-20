@@ -1,0 +1,52 @@
+#!/bin/bash
+# Pre-commit hook to check for schema synchronization
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if models were modified
+models_modified=$(git diff --cached --name-only | grep "^backend/app/models/" | wc -l)
+
+# Check if init_db.sql was modified
+sql_modified=$(git diff --cached --name-only | grep "^backend/init_db.sql" | wc -l)
+
+# If models changed but SQL didn't, warn the developer
+if [ "$models_modified" -gt 0 ] && [ "$sql_modified" -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  WARNING: Database models modified but init_db.sql not updated!${NC}"
+    echo ""
+    echo "You modified files in backend/app/models/ but didn't update backend/init_db.sql"
+    echo ""
+    echo "Please ensure schema synchronization:"
+    echo "  1. Update backend/init_db.sql with your schema changes"
+    echo "  2. Test with: ./backend/reset_db.sh"
+    echo "  3. Add init_db.sql to this commit: git add backend/init_db.sql"
+    echo ""
+    echo "See backend/DATABASE_SCHEMA.md for details"
+    echo ""
+    read -p "Continue commit anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Commit aborted.${NC}"
+        exit 1
+    fi
+fi
+
+# If SQL changed but models didn't, warn the developer
+if [ "$sql_modified" -gt 0 ] && [ "$models_modified" -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  WARNING: init_db.sql modified but no model changes detected!${NC}"
+    echo ""
+    echo "You modified backend/init_db.sql but no files in backend/app/models/"
+    echo ""
+    echo "Please ensure models are synchronized with SQL schema."
+    echo ""
+    read -p "Continue commit anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Commit aborted.${NC}"
+        exit 1
+    fi
+fi
+
+exit 0
