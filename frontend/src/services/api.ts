@@ -86,7 +86,11 @@ class APIService {
     return response.data;
   }
 
-  async uploadDocument(file: File, title?: string): Promise<DocumentUploadResponse> {
+  async uploadDocument(
+    file: File,
+    title?: string,
+    onProgress?: (progress: number) => void
+  ): Promise<DocumentUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
     if (title) {
@@ -100,8 +104,26 @@ class APIService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(progress);
+          }
+        },
       }
     );
+    return response.data;
+  }
+
+  async downloadDocument(documentId: string): Promise<Blob> {
+    const response = await this.client.get(`/api/v1/documents/${documentId}/download`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
+  async getDownloadUrl(documentId: string): Promise<{ download_url: string; expires_in: number }> {
+    const response = await this.client.get(`/api/v1/documents/${documentId}/download-url`);
     return response.data;
   }
 

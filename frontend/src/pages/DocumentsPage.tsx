@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import type { Document } from '../types';
+import FileUpload from '../components/FileUpload';
 
 const DocumentsPage: React.FC = () => {
   const { user, logout } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     loadDocuments();
@@ -38,6 +41,48 @@ const DocumentsPage: React.FC = () => {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
   };
 
+  const handleUpload = async (file: File, title?: string) => {
+    setIsUploading(true);
+    try {
+      await api.uploadDocument(file, title);
+      setShowUploadModal(false);
+      await loadDocuments();
+    } catch (err: any) {
+      throw err; // Let FileUpload component handle the error
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDownload = async (doc: Document) => {
+    try {
+      const blob = await api.downloadDocument(doc.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.original_filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      alert('Failed to download document');
+    }
+  };
+
+  const handleDelete = async (documentId: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) {
+      return;
+    }
+
+    try {
+      await api.deleteDocument(documentId);
+      await loadDocuments();
+    } catch (err) {
+      alert('Failed to delete document');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -62,7 +107,10 @@ const DocumentsPage: React.FC = () => {
           <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-medium text-gray-900">Documents</h2>
-              <button className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+              >
                 Upload Document
               </button>
             </div>
@@ -165,10 +213,18 @@ const DocumentsPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button className="text-indigo-600 hover:text-indigo-900 mr-4">
-                            View
+                          <button
+                            onClick={() => handleDownload(doc)}
+                            className="text-indigo-600 hover:text-indigo-900 mr-4"
+                          >
+                            Download
                           </button>
-                          <button className="text-red-600 hover:text-red-900">Delete</button>
+                          <button
+                            onClick={() => handleDelete(doc.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -179,6 +235,32 @@ const DocumentsPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Upload Document</h3>
+              <button
+                onClick={() => !isUploading && setShowUploadModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+                disabled={isUploading}
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <FileUpload onUpload={handleUpload} isUploading={isUploading} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
